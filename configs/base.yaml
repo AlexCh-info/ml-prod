@@ -1,0 +1,26 @@
+# Базовая конфигурация taxi-duration.
+# Любое поле переопределяется переменной окружения TAXI__<СЕКЦИЯ>__<ПОЛЕ>,
+# например TAXI__LOGGING__LEVEL=DEBUG. Секреты сюда НЕ пишем — только через .env/env.
+
+app:
+  name: taxi-duration
+  environment: local      # local | dev | prod
+  seed: 42                # общий random seed для воспроизводимости
+
+logging:
+  level: INFO             # DEBUG | INFO | WARNING | ERROR | CRITICAL
+  format: text            # text — локально, json — в контейнерах
+  config_path: configs/logging.yaml
+
+paths:
+  # fsspec URI: локально каталог, в Airflow — s3://lake/...
+  data_dir: data
+  artifacts_dir: artifacts
+
+mlflow:
+  tracking_uri: http://localhost:5001   # порт 5000 на macOS занят AirPlay
+
+s3:
+  endpoint_url: http://localhost:9000   # MinIO
+  # access_key_id / secret_access_key задаются только через env:
+  # TAXI__S3__ACCESS_KEY_ID, TAXI__S3__SECRET_ACCESS_KEY
