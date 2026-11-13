@@ -1,0 +1,6 @@
+# Claude Code и планирование — локальные, не коммитим
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+.mcp.json
+openspec/
