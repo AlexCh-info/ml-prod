@@ -4,3 +4,28 @@ CLAUDE.md
 CLAUDE.local.md
 .mcp.json
 openspec/
+
+# Секреты: в git только .env.example
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Окружение uv (uv.lock коммитим!)
+.venv/
+
+# Кеши инструментов
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# macOS
+.DS_Store
