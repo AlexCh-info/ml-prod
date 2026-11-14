@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -28,6 +29,16 @@ def isolated_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[No
     load_settings.cache_clear()
     yield
     load_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_logging() -> Iterator[None]:
+    """dictConfig меняет глобальное состояние процесса — откатываем его после теста."""
+    yield
+    root = logging.getLogger()
+    for handler in list(root.handlers):
+        root.removeHandler(handler)
+    logging.getLogger("taxi_duration").setLevel(logging.NOTSET)
 
 
 @pytest.fixture

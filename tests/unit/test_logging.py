@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import logging.config
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Literal
 
@@ -16,16 +14,6 @@ from taxi_duration.errors import ConfigError
 from taxi_duration.logging_setup import setup_logging
 
 LOGGER_NAME = "taxi_duration.data.ingest"
-
-
-@pytest.fixture(autouse=True)
-def reset_logging() -> Iterator[None]:
-    """dictConfig меняет глобальное состояние процесса — откатываем его после теста."""
-    yield
-    root = logging.getLogger()
-    for handler in list(root.handlers):
-        root.removeHandler(handler)
-    logging.getLogger("taxi_duration").setLevel(logging.NOTSET)
 
 
 def make_settings(
