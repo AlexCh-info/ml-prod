@@ -83,7 +83,7 @@ def test_missing_file_raises_config_error_with_path(
 ) -> None:
     missing = tmp_path / "nope.yaml"
     monkeypatch.setenv("TAXI_CONFIG", str(missing))
-    with pytest.raises(ConfigError, match="nope.yaml"):
+    with pytest.raises(ConfigError, match=r"nope\.yaml"):
         load_settings()
 
 

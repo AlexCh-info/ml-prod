@@ -43,9 +43,7 @@ def test_version_works_without_config(monkeypatch: pytest.MonkeyPatch, tmp_path:
     assert result.exit_code == 0
 
 
-def test_config_show_uses_repo_base_yaml(
-    monkeypatch: pytest.MonkeyPatch, repo_root: Path
-) -> None:
+def test_config_show_uses_repo_base_yaml(monkeypatch: pytest.MonkeyPatch, repo_root: Path) -> None:
     monkeypatch.chdir(repo_root)
     result = runner.invoke(app, ["config", "show"])
     assert result.exit_code == 0, result.output
