@@ -117,7 +117,7 @@ def test_repeated_setup_does_not_duplicate_output(
 
 def test_missing_logging_config_raises_config_error(repo_root: Path, tmp_path: Path) -> None:
     missing = tmp_path / "no-logging.yaml"
-    with pytest.raises(ConfigError, match="no-logging.yaml"):
+    with pytest.raises(ConfigError, match=r"no-logging\.yaml"):
         setup_logging(make_settings(repo_root, config_path=missing))
 
 

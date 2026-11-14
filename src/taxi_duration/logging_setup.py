@@ -1,8 +1,10 @@
-import yaml
 import logging.config
 
-from taxi_duration.errors import ConfigError
+import yaml
+
 from taxi_duration.config import Settings
+from taxi_duration.errors import ConfigError
+
 
 def setup_logging(settings: Settings) -> None:
     """Настроить логирование процесса по settings.logging.
@@ -29,11 +31,8 @@ def setup_logging(settings: Settings) -> None:
     logging_dict = yaml.safe_load(dict_text)
 
     # Применяем полученную конфигурацию из класса
-    logging_dict['handlers']['console']['formatter'] = settings.logging.format
-    logging_dict['loggers']['taxi_duration']['level'] = settings.logging.level
-    
+    logging_dict["handlers"]["console"]["formatter"] = settings.logging.format
+    logging_dict["loggers"]["taxi_duration"]["level"] = settings.logging.level
+
     # Записываем изменения
     logging.config.dictConfig(logging_dict)
-
-
-
