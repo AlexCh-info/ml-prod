@@ -101,12 +101,18 @@ def test_logger_created_before_setup_still_works(
     repo_root: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     # Модули создают логгер при импорте — до вызова setup_logging().
+    # Наши логгеры (потомки taxi_duration) dictConfig не отключает в любом случае,
+    # а вот чужие (библиотеки) при disable_existing_loggers: true замолчали бы целиком.
     early = logging.getLogger("taxi_duration.created_before_setup")
+    library = logging.getLogger("some_library.client")
     setup_logging(make_settings(repo_root))
 
     early.info("still alive")
+    library.warning("library warning")
 
-    assert "still alive" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "still alive" in out
+    assert "library warning" in out
 
 
 def test_repeated_setup_does_not_duplicate_output(
