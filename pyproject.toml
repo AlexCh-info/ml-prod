@@ -2,6 +2,7 @@
 name = "taxi-duration"
 version = "0.0.0"
 description = "Учебный end-to-end MLOps-проект: прогноз длительности поездки NYC Green Taxi"
+readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "pydantic>=2.14.3",
