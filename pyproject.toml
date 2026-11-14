@@ -1,0 +1,31 @@
+[project]
+name = "taxi-duration"
+version = "0.0.0"
+description = "Учебный end-to-end MLOps-проект: прогноз длительности поездки NYC Green Taxi"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pydantic>=2.14.3",
+    "pydantic-settings>=2.16.3",
+    "python-json-logger>=4.2.0",
+    "pyyaml>=6.0.3",
+    "typer>=0.29.1",
+]
+
+[project.scripts]
+taxi = "taxi_duration.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/taxi_duration"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
