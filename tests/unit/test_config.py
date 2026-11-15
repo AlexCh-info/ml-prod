@@ -66,6 +66,25 @@ def test_dotenv_overrides_yaml_but_env_wins(
     assert settings.app.name == "from-env"
 
 
+def test_dotenv_ignores_foreign_keys_shared_with_compose(
+    write_config: WriteConfig, tmp_path: Path
+) -> None:
+    # .env общий с docker compose: его переменные не должны ломать конфиг приложения.
+    write_config(SAMPLE_YAML)
+    (tmp_path / ".env").write_text(
+        "POSTGRES_PASSWORD=pg-secret\nMINIO_ROOT_USER=minio\nTAXI__APP__SEED=100\n"
+    )
+    settings = load_settings()
+    assert settings.app.seed == 100
+
+
+def test_dotenv_typo_in_prefixed_key_is_rejected(write_config: WriteConfig, tmp_path: Path) -> None:
+    write_config(SAMPLE_YAML)
+    (tmp_path / ".env").write_text("TAXI__MLFOW__TRACKING_URI=http://typo:5000\n")
+    with pytest.raises(ConfigError, match="mlfow"):
+        load_settings()
+
+
 def test_wrong_type_raises_config_error_with_field_name(write_config: WriteConfig) -> None:
     write_config("app:\n  seed: abc\n")
     with pytest.raises(ConfigError, match=r"app\.seed"):

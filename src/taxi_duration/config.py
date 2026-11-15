@@ -92,6 +92,10 @@ class Settings(BaseSettings):
         env_nested_delimiter="__",
         env_file=".env",
         env_file_encoding="utf-8",
+        # .env общий с docker compose (POSTGRES_PASSWORD, MINIO_ROOT_USER, ...).
+        # match_prefix: из .env берутся только TAXI__*, чужие ключи не ошибка,
+        # а опечатка в TAXI__* по-прежнему ловится через extra="forbid".
+        dotenv_filtering="match_prefix",
         extra="forbid",
     )
 
