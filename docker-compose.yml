@@ -3,7 +3,7 @@
 #   make up                  # = docker compose --profile core up -d
 #
 # Профили (решение 7 в design.md): у КАЖДОГО сервиса есть profiles, иначе он стартует всегда.
-#   core       — postgres, rustfs (S3), rustfs-init, mlflow, redis   (~1.5 GB RAM)
+#   core       — postgres, rustfs (S3), rustfs-init, mlflow, redis   (~0.7 GB RAM)
 #   airflow / serving / monitoring — добавляются на этапах 07 / 08 / 11.
 #
 # Все ${VAR:?...} обязательны: без .env compose падает сразу с понятной ошибкой,

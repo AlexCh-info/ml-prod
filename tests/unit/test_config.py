@@ -118,7 +118,7 @@ def test_config_error_is_taxi_error() -> None:
 
 def test_secrets_are_masked(write_config: WriteConfig, monkeypatch: pytest.MonkeyPatch) -> None:
     write_config(SAMPLE_YAML)
-    monkeypatch.setenv("TAXI__S3__ACCESS_KEY_ID", "minioadmin")
+    monkeypatch.setenv("TAXI__S3__ACCESS_KEY_ID", "rustfs-test-key")
     monkeypatch.setenv("TAXI__S3__SECRET_ACCESS_KEY", "super-secret")
     settings = load_settings()
 
@@ -129,7 +129,7 @@ def test_secrets_are_masked(write_config: WriteConfig, monkeypatch: pytest.Monke
     # ...но не утекает ни в дамп, ни в repr.
     dumped = json.dumps(settings.to_safe_dict())
     assert "super-secret" not in dumped
-    assert "minioadmin" not in dumped
+    assert "rustfs-test-key" not in dumped
     assert settings.to_safe_dict()["s3"]["secret_access_key"] == "**********"
     assert "super-secret" not in repr(settings)
 

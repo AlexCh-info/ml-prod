@@ -7,7 +7,7 @@ ARG MLFLOW_VERSION=3.18.0
 FROM ghcr.io/mlflow/mlflow:v${MLFLOW_VERSION}
 
 # psycopg2-binary — драйвер для --backend-store-uri postgresql://...
-# boto3 — клиент S3: сервер сам пишет артефакты в MinIO (--artifacts-destination s3://mlflow).
+# boto3 — клиент S3: сервер сам пишет артефакты в RustFS (--artifacts-destination s3://mlflow).
 RUN pip install --no-cache-dir \
         psycopg2-binary==2.9.13 \
         boto3==1.44.3 \
