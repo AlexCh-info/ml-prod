@@ -69,10 +69,41 @@ TAXI_CONFIG=configs/base.yaml uv run taxi config show # явный выбор YA
 
 Обычный цикл: написал код → `make fmt` → `make check` → коммит.
 
+## Локальный стенд (Docker)
+
+Сервисы профиля `core`: Postgres, RustFS (S3), MLflow, Redis. Нужно около 0.7 GB RAM.
+
+```bash
+cp .env.example .env   # один раз; замени все change-me ДО первого make up
+make up                # поднимает стенд и ждёт, пока все сервисы станут healthy
+```
+
+| Цель | Что делает |
+|---|---|
+| `make build` | собирает `taxi-duration-train:<git sha>` (и `:dev`) и образ MLflow |
+| `make up` | `docker compose --profile core up -d --wait`; падает, если за 120 с стенд не стал healthy |
+| `make down` | останавливает стенд, **данные в volumes сохраняются** |
+| `make ps` | статус сервисов, включая завершённый `rustfs-init` |
+| `make logs` | логи всех сервисов; один сервис — `make logs SERVICE=mlflow` |
+
+| Сервис | С хоста | Из контейнеров |
+|---|---|---|
+| MLflow UI / API | http://localhost:5001 | http://mlflow:5000 |
+| RustFS S3 API | http://localhost:9000 | http://rustfs:9000 |
+| Консоль RustFS | http://localhost:9001/rustfs/console/ | — |
+| Postgres | localhost:5432 | postgres:5432 |
+| Redis | localhost:6379 | redis:6379 |
+
+Полный сброс (удалит все эксперименты MLflow и объекты S3): `docker compose --profile core down -v`.
+Пароли из `.env` применяются только при первом старте на пустых volumes.
+
 ## Структура
 
 ```
 configs/              YAML-конфиги приложения и логирования
+docker/               Dockerfile образов (train, mlflow)
+infra/postgres/       init.sql: базы и пользователи mlflow, airflow
+docker-compose.yml    локальный стенд (профиль core)
 src/taxi_duration/    пакет (src-layout)
   cli.py              точка входа `taxi`
   config.py           типизированные настройки (pydantic-settings)

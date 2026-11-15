@@ -1,0 +1,161 @@
+# Локальный стенд taxi-duration.
+#   cp .env.example .env     # один раз; затем заменить пароли
+#   make up                  # = docker compose --profile core up -d
+#
+# Профили (решение 7 в design.md): у КАЖДОГО сервиса есть profiles, иначе он стартует всегда.
+#   core       — postgres, rustfs (S3), rustfs-init, mlflow, redis   (~0.7 GB RAM)
+#   airflow / serving / monitoring — добавляются на этапах 07 / 08 / 11.
+#
+# Все ${VAR:?...} обязательны: без .env compose падает сразу с понятной ошибкой,
+# а не поднимает сервис с пустым паролем.
+#
+# Порты публикуются только на 127.0.0.1: стенд не виден другим машинам в Wi-Fi-сети.
+# Внутри сети taxi-net сервисы ходят друг к другу по именам: postgres:5432, rustfs:9000, mlflow:5000.
+
+name: taxi-duration
+
+x-core: &core
+  profiles: [core]
+  networks: [taxi-net]
+  restart: unless-stopped
+
+services:
+  postgres:
+    <<: *core
+    image: postgres:17.12-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Читаются init.sql через \getenv при первом старте на пустом volume.
+      MLFLOW_DB_USER: ${MLFLOW_DB_USER:?set MLFLOW_DB_USER in .env}
+      MLFLOW_DB_PASSWORD: ${MLFLOW_DB_PASSWORD:?set MLFLOW_DB_PASSWORD in .env}
+      AIRFLOW_DB_USER: ${AIRFLOW_DB_USER:?set AIRFLOW_DB_USER in .env}
+      AIRFLOW_DB_PASSWORD: ${AIRFLOW_DB_PASSWORD:?set AIRFLOW_DB_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_USER} -h 127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  rustfs:
+    <<: *core
+    image: rustfs/rustfs:1.0.5
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?set RUSTFS_ACCESS_KEY in .env}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:?set RUSTFS_SECRET_KEY in .env}
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+    volumes:
+      - rustfs-data:/data
+    ports:
+      - "127.0.0.1:${RUSTFS_API_PORT:-9000}:9000"      # S3 API
+      - "127.0.0.1:${RUSTFS_CONSOLE_PORT:-9001}:9001"  # веб-консоль: /rustfs/console/
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Одноразовый сервис: создаёт buckets и завершается с кодом 0.
+  # Идемпотентен: head-bucket проверяет существование, create-bucket вызывается только для новых.
+  rustfs-init:
+    <<: *core
+    image: amazon/aws-cli:2.40.3
+    restart: "no"
+    environment:
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:?set RUSTFS_ACCESS_KEY in .env}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:?set RUSTFS_SECRET_KEY in .env}
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://rustfs:9000
+      BUCKETS: mlflow dvc lake reports
+    entrypoint: ["/bin/sh", "-ec"]
+    # $$ — экранирование для compose: в shell попадёт обычный $.
+    command:
+      - |
+        for bucket in $$BUCKETS; do
+          if aws s3api head-bucket --bucket "$$bucket" 2>/dev/null; then
+            echo "bucket $$bucket: exists"
+          else
+            aws s3api create-bucket --bucket "$$bucket" >/dev/null
+            echo "bucket $$bucket: created"
+          fi
+        done
+    depends_on:
+      rustfs:
+        condition: service_healthy
+
+  mlflow:
+    <<: *core
+    build:
+      context: .
+      dockerfile: docker/mlflow.Dockerfile
+    image: taxi-mlflow:3.18.0
+    environment:
+      # Ключи S3 есть ТОЛЬКО у сервера: клиенты шлют артефакты по HTTP (решение 3).
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:?set RUSTFS_ACCESS_KEY in .env}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:?set RUSTFS_SECRET_KEY in .env}
+      AWS_DEFAULT_REGION: us-east-1
+      MLFLOW_S3_ENDPOINT_URL: http://rustfs:9000
+      # MLflow 3.x по умолчанию поднимает job runner (huey) для GenAI-задач: ~8 процессов
+      # по ~230 MB. Трекингу и реестру он не нужен; выключаем, иначе MLflow ест ~2 GB вместо ~0.5.
+      MLFLOW_SERVER_ENABLE_JOB_EXECUTION: "false"
+    command:
+      - --host=0.0.0.0
+      - --port=5000
+      # +psycopg2: явный драйвер SQLAlchemy. MLflow 3.x для голого postgresql:// ищет psycopg (v3).
+      # Пароль подставляется в URI: только URL-безопасные символы (см. .env.example).
+      - --backend-store-uri=postgresql+psycopg2://${MLFLOW_DB_USER:?set MLFLOW_DB_USER in .env}:${MLFLOW_DB_PASSWORD:?set MLFLOW_DB_PASSWORD in .env}@postgres:5432/mlflow
+      - --artifacts-destination=s3://mlflow
+      - --serve-artifacts
+      # MLflow 3.x проверяет Host: без "mlflow:*" контейнеры не достучатся до http://mlflow:5000.
+      - --allowed-hosts=localhost,localhost:*,127.0.0.1:*,mlflow,mlflow:*
+      # По умолчанию 4 воркера; для локального стенда хватит 2 (экономия RAM).
+      - --workers=2
+    ports:
+      - "127.0.0.1:${MLFLOW_PORT:-5001}:5000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+      rustfs-init:
+        condition: service_completed_successfully
+
+  redis:
+    <<: *core
+    image: redis:8.8.4-alpine
+    # AOF: online store Feast переживает перезапуск без повторного materialize.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+networks:
+  taxi-net:
+    name: taxi-net
+
+volumes:
+  postgres-data:
+  rustfs-data:
+  redis-data:

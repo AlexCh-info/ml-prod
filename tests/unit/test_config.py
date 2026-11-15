@@ -66,6 +66,25 @@ def test_dotenv_overrides_yaml_but_env_wins(
     assert settings.app.name == "from-env"
 
 
+def test_dotenv_ignores_foreign_keys_shared_with_compose(
+    write_config: WriteConfig, tmp_path: Path
+) -> None:
+    # .env общий с docker compose: его переменные не должны ломать конфиг приложения.
+    write_config(SAMPLE_YAML)
+    (tmp_path / ".env").write_text(
+        "POSTGRES_PASSWORD=pg-secret\nRUSTFS_ACCESS_KEY=rustfsadmin\nTAXI__APP__SEED=100\n"
+    )
+    settings = load_settings()
+    assert settings.app.seed == 100
+
+
+def test_dotenv_typo_in_prefixed_key_is_rejected(write_config: WriteConfig, tmp_path: Path) -> None:
+    write_config(SAMPLE_YAML)
+    (tmp_path / ".env").write_text("TAXI__MLFOW__TRACKING_URI=http://typo:5000\n")
+    with pytest.raises(ConfigError, match="mlfow"):
+        load_settings()
+
+
 def test_wrong_type_raises_config_error_with_field_name(write_config: WriteConfig) -> None:
     write_config("app:\n  seed: abc\n")
     with pytest.raises(ConfigError, match=r"app\.seed"):
@@ -99,7 +118,7 @@ def test_config_error_is_taxi_error() -> None:
 
 def test_secrets_are_masked(write_config: WriteConfig, monkeypatch: pytest.MonkeyPatch) -> None:
     write_config(SAMPLE_YAML)
-    monkeypatch.setenv("TAXI__S3__ACCESS_KEY_ID", "minioadmin")
+    monkeypatch.setenv("TAXI__S3__ACCESS_KEY_ID", "rustfs-test-key")
     monkeypatch.setenv("TAXI__S3__SECRET_ACCESS_KEY", "super-secret")
     settings = load_settings()
 
@@ -110,9 +129,33 @@ def test_secrets_are_masked(write_config: WriteConfig, monkeypatch: pytest.Monke
     # ...но не утекает ни в дамп, ни в repr.
     dumped = json.dumps(settings.to_safe_dict())
     assert "super-secret" not in dumped
-    assert "minioadmin" not in dumped
+    assert "rustfs-test-key" not in dumped
     assert settings.to_safe_dict()["s3"]["secret_access_key"] == "**********"
     assert "super-secret" not in repr(settings)
+
+
+def test_repo_base_yaml_defines_s3_buckets(
+    monkeypatch: pytest.MonkeyPatch, repo_root: Path
+) -> None:
+    # Имена buckets из base.yaml должны совпадать с теми, что создаёт rustfs-init.
+    monkeypatch.chdir(repo_root)
+    buckets = load_settings().s3.buckets
+    assert (buckets.mlflow, buckets.dvc, buckets.lake, buckets.reports) == (
+        "mlflow",
+        "dvc",
+        "lake",
+        "reports",
+    )
+
+
+def test_env_overrides_deeply_nested_bucket(
+    write_config: WriteConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_config(SAMPLE_YAML)
+    monkeypatch.setenv("TAXI__S3__BUCKETS__LAKE", "lake-dev")
+    buckets = load_settings().s3.buckets
+    assert buckets.lake == "lake-dev"
+    assert buckets.dvc == "dvc"
 
 
 def test_settings_are_cached(write_config: WriteConfig) -> None:
