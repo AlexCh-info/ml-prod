@@ -21,6 +21,11 @@ mlflow:
   tracking_uri: http://localhost:5001   # порт 5000 на macOS занят AirPlay
 
 s3:
-  endpoint_url: http://localhost:9000   # MinIO
+  endpoint_url: http://localhost:9000   # RustFS
+  buckets:                              # создаёт rustfs-init (docker-compose.yml)
+    mlflow: mlflow                      # артефакты MLflow: пишет только MLflow server
+    dvc: dvc                            # remote DVC (этап 02)
+    lake: lake                          # данные для Airflow (этап 07)
+    reports: reports                    # отчёты GX / Evidently
   # access_key_id / secret_access_key задаются только через env:
   # TAXI__S3__ACCESS_KEY_ID, TAXI__S3__SECRET_ACCESS_KEY

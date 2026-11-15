@@ -72,7 +72,7 @@ def test_dotenv_ignores_foreign_keys_shared_with_compose(
     # .env общий с docker compose: его переменные не должны ломать конфиг приложения.
     write_config(SAMPLE_YAML)
     (tmp_path / ".env").write_text(
-        "POSTGRES_PASSWORD=pg-secret\nMINIO_ROOT_USER=minio\nTAXI__APP__SEED=100\n"
+        "POSTGRES_PASSWORD=pg-secret\nRUSTFS_ACCESS_KEY=rustfsadmin\nTAXI__APP__SEED=100\n"
     )
     settings = load_settings()
     assert settings.app.seed == 100
@@ -132,6 +132,30 @@ def test_secrets_are_masked(write_config: WriteConfig, monkeypatch: pytest.Monke
     assert "minioadmin" not in dumped
     assert settings.to_safe_dict()["s3"]["secret_access_key"] == "**********"
     assert "super-secret" not in repr(settings)
+
+
+def test_repo_base_yaml_defines_s3_buckets(
+    monkeypatch: pytest.MonkeyPatch, repo_root: Path
+) -> None:
+    # Имена buckets из base.yaml должны совпадать с теми, что создаёт rustfs-init.
+    monkeypatch.chdir(repo_root)
+    buckets = load_settings().s3.buckets
+    assert (buckets.mlflow, buckets.dvc, buckets.lake, buckets.reports) == (
+        "mlflow",
+        "dvc",
+        "lake",
+        "reports",
+    )
+
+
+def test_env_overrides_deeply_nested_bucket(
+    write_config: WriteConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_config(SAMPLE_YAML)
+    monkeypatch.setenv("TAXI__S3__BUCKETS__LAKE", "lake-dev")
+    buckets = load_settings().s3.buckets
+    assert buckets.lake == "lake-dev"
+    assert buckets.dvc == "dvc"
 
 
 def test_settings_are_cached(write_config: WriteConfig) -> None:

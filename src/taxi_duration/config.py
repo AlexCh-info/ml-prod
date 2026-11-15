@@ -74,8 +74,19 @@ class MlflowSettings(_Section):
     tracking_uri: str = "http://localhost:5001"
 
 
+class S3BucketsSettings(_Section):
+    """Имена buckets; их создаёт сервис rustfs-init в docker-compose.yml."""
+
+    mlflow: str = "mlflow"  # артефакты MLflow (пишет только MLflow server)
+    dvc: str = "dvc"  # remote DVC
+    lake: str = "lake"  # данные для Airflow
+    reports: str = "reports"  # отчёты GX / Evidently
+
+
 class S3Settings(_Section):
+    # С хоста http://localhost:9000, из контейнеров TAXI__S3__ENDPOINT_URL=http://rustfs:9000.
     endpoint_url: str = "http://localhost:9000"
+    buckets: S3BucketsSettings = Field(default_factory=S3BucketsSettings)
     # SecretStr: repr/str/JSON-дамп показывают "**********" вместо значения.
     access_key_id: SecretStr | None = None
     secret_access_key: SecretStr | None = None
@@ -92,7 +103,7 @@ class Settings(BaseSettings):
         env_nested_delimiter="__",
         env_file=".env",
         env_file_encoding="utf-8",
-        # .env общий с docker compose (POSTGRES_PASSWORD, MINIO_ROOT_USER, ...).
+        # .env общий с docker compose (POSTGRES_PASSWORD, RUSTFS_ACCESS_KEY, ...).
         # match_prefix: из .env берутся только TAXI__*, чужие ключи не ошибка,
         # а опечатка в TAXI__* по-прежнему ловится через extra="forbid".
         dotenv_filtering="match_prefix",
