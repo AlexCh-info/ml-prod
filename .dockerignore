@@ -1,0 +1,52 @@
+# Контекст сборки: всё, что НЕ нужно в образе и не должно инвалидировать кеш слоёв.
+# Важно: uv.lock, pyproject.toml, README.md (на него ссылается pyproject → нужен hatchling),
+# src/ и configs/ в контекст попадают.
+
+# VCS и локальные инструменты ИИ/планирования
+.git/
+.gitignore
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+.mcp.json
+openspec/
+
+# Секреты: .env никогда не уезжает в образ (передаётся через env/compose)
+.env
+.env.*
+!.env.example
+
+# Окружение uv: в образе venv собирается заново под linux/arm64
+.venv/
+
+# Данные и артефакты (версионируются DVC / хранятся в MinIO, а не в образе)
+data/
+mlruns/
+mlartifacts/
+reports/
+*.parquet
+
+# Python- и tool-кеши
+**/__pycache__/
+**/*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Тесты и dev-конфиги в train-образ не нужны
+tests/
+.pre-commit-config.yaml
+
+# Сами docker-файлы: правка compose не должна пересобирать образ
+docker-compose*.yml
+infra/
+
+# macOS / IDE
+.DS_Store
+.idea/
+.vscode/
