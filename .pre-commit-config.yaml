@@ -13,8 +13,12 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-yaml
+      # dvc.lock генерирует DVC и перезаписывает на каждом repro (длинные строки YAML
+      # он переносит с пробелом в конце). Правка хуком откатывалась бы снова и снова.
       - id: end-of-file-fixer
+        exclude: ^dvc\.lock$
       - id: trailing-whitespace
+        exclude: ^dvc\.lock$
       - id: check-added-large-files   # защита от случайного коммита parquet/моделей
         args: ["--maxkb=1024"]
 
