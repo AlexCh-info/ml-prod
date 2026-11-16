@@ -17,12 +17,22 @@ from __future__ import annotations
 
 import logging
 import os
+import re
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -38,6 +48,8 @@ CONFIG_ENV_VAR = "TAXI_CONFIG"
 DEFAULT_CONFIG_PATH = Path("configs/base.yaml")
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
+_MONTH_RE = re.compile(r"\d{4}-(0[1-9]|1[0-2])")
 
 
 class _Section(BaseModel):
@@ -66,8 +78,70 @@ class LoggingSettings(_Section):
 
 class PathsSettings(_Section):
     # Строки, а не Path: это fsspec URI (data или s3://lake/...), Path сломал бы "s3://".
-    data_dir: str = "data"
+    data_root: str = "data"
     artifacts_dir: str = "artifacts"
+
+
+class FilterSettings(_Section):
+    """Пороги очистки поездок (этап prepare). Ключ ``data.filters`` — параметр DVC-стадии."""
+
+    min_duration: float = Field(default=1.0, ge=0)
+    max_duration: float = Field(default=60.0, gt=0)
+
+    @model_validator(mode="after")
+    def _check_range(self) -> FilterSettings:
+        if self.min_duration >= self.max_duration:
+            raise ValueError(
+                f"min_duration ({self.min_duration}) must be less than "
+                f"max_duration ({self.max_duration})"
+            )
+        return self
+
+
+class DownloadSettings(_Section):
+    """Сетевые параметры загрузки сырых файлов (этап ingest)."""
+
+    timeout_s: float = Field(default=60.0, gt=0)
+    max_attempts: int = Field(default=3, ge=1)  # всего попыток, включая первую
+    backoff_base_s: float = Field(default=1.0, ge=0)  # пауза перед повтором: base * 2**(n-1)
+
+
+class DataSettings(_Section):
+    # {month} подставляется как YYYY-MM.
+    url_template: str = (
+        "https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_{month}.parquet"
+    )
+    # Месяцы, которые собирает DVC-пайплайн (foreach в dvc.yaml).
+    months: list[str] = Field(default_factory=lambda: ["2024-01"])
+    filters: FilterSettings = Field(default_factory=FilterSettings)
+    download: DownloadSettings = Field(default_factory=DownloadSettings)
+
+    @field_validator("url_template")
+    @classmethod
+    def _template_has_month(cls, value: str) -> str:
+        if "{month}" not in value:
+            raise ValueError("url_template must contain the {month} placeholder")
+        return value
+
+    @field_validator("months")
+    @classmethod
+    def _valid_months(cls, value: list[str]) -> list[str]:
+        for month in value:
+            parse_month(month)
+        if len(set(value)) != len(value):
+            raise ValueError(f"months must be unique: {value}")
+        return value
+
+
+def parse_month(month: str) -> date:
+    """Проверить строку ``YYYY-MM`` и вернуть первый день месяца.
+
+    Raises:
+        ValueError: формат не ``YYYY-MM`` или месяц вне 01..12.
+    """
+    if not _MONTH_RE.fullmatch(month):
+        raise ValueError(f"month must be in YYYY-MM format, got {month!r}")
+    return date(int(month[:4]), int(month[5:]), 1)
 
 
 class MlflowSettings(_Section):
@@ -113,6 +187,7 @@ class Settings(BaseSettings):
     app: AppSettings = Field(default_factory=AppSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     paths: PathsSettings = Field(default_factory=PathsSettings)
+    data: DataSettings = Field(default_factory=DataSettings)
     mlflow: MlflowSettings = Field(default_factory=MlflowSettings)
     s3: S3Settings = Field(default_factory=S3Settings)
 

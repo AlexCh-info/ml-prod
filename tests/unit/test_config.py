@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from datetime import date
 from pathlib import Path
 
 import pytest
 
-from taxi_duration.config import load_settings
+from taxi_duration.config import load_settings, parse_month
 from taxi_duration.errors import ConfigError, TaxiError
 
 WriteConfig = Callable[..., Path]
@@ -156,6 +157,46 @@ def test_env_overrides_deeply_nested_bucket(
     buckets = load_settings().s3.buckets
     assert buckets.lake == "lake-dev"
     assert buckets.dvc == "dvc"
+
+
+def test_repo_base_yaml_defines_data_section(
+    monkeypatch: pytest.MonkeyPatch, repo_root: Path
+) -> None:
+    monkeypatch.chdir(repo_root)
+    settings = load_settings()
+    assert settings.paths.data_root == "data"
+    assert settings.data.months == ["2024-01"]
+    assert (settings.data.filters.min_duration, settings.data.filters.max_duration) == (1, 60)
+    assert "{month}" in settings.data.url_template
+
+
+@pytest.mark.parametrize("month", ["2024-1", "2024-13", "2024-00", "24-01", "2024/01"])
+def test_invalid_month_is_rejected(write_config: WriteConfig, month: str) -> None:
+    write_config(f'data:\n  months: ["{month}"]\n')
+    with pytest.raises(ConfigError, match=r"data\.months"):
+        load_settings()
+
+
+def test_duplicate_months_are_rejected(write_config: WriteConfig) -> None:
+    write_config('data:\n  months: ["2024-01", "2024-01"]\n')
+    with pytest.raises(ConfigError, match="unique"):
+        load_settings()
+
+
+def test_inverted_duration_filter_is_rejected(write_config: WriteConfig) -> None:
+    write_config("data:\n  filters:\n    min_duration: 60\n    max_duration: 1\n")
+    with pytest.raises(ConfigError, match=r"data\.filters"):
+        load_settings()
+
+
+def test_url_template_without_placeholder_is_rejected(write_config: WriteConfig) -> None:
+    write_config("data:\n  url_template: https://example.com/file.parquet\n")
+    with pytest.raises(ConfigError, match="month"):
+        load_settings()
+
+
+def test_parse_month_returns_first_day() -> None:
+    assert parse_month("2024-02") == date(2024, 2, 1)
 
 
 def test_settings_are_cached(write_config: WriteConfig) -> None:
