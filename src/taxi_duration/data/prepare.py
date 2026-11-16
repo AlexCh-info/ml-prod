@@ -6,11 +6,9 @@
 
 from __future__ import annotations
 
-import re
-
 import pandas as pd
 
-from taxi_duration.config import FilterSettings
+from taxi_duration.config import FilterSettings, parse_month
 from taxi_duration.errors import DataError
 
 # Колонки сырого файла TLC, без которых подготовка невозможна.
@@ -31,6 +29,13 @@ PREPARED_SCHEMA: dict[str, str] = {
     "pickup_hour": "int32",
     "pickup_weekday": "int32",
     "duration_min": "float64",
+}
+
+# Переименование сырых колонок TLC в имена схемы результата.
+_RAW_TO_PREPARED: dict[str, str] = {
+    "lpep_pickup_datetime": "pickup_datetime",
+    "PULocationID": "pu_zone",
+    "DOLocationID": "do_zone",
 }
 
 
@@ -69,50 +74,32 @@ def prepare_trips(raw: pd.DataFrame, month: str, filters: FilterSettings) -> pd.
     Raises:
         DataError: нет обязательных колонок или неверный ``month``.
     """
-    # Пропущенные колонки, сравниваем колонки из списка нужных и тех что в датасете
-    missing_cols = [col for col in RAW_REQUIRED_COLUMNS if col not in raw.columns]
-    # Если есть пропущенные колонки выводим ошибку
-    if missing_cols:
-        raise DataError(f"Отсутствуют обязательные колонки: {', '.join(missing_cols)}")
+    # Контракт п.1: сначала проверяем вход, до любых вычислений.
+    missing = [col for col in RAW_REQUIRED_COLUMNS if col not in raw.columns]
+    if missing:
+        raise DataError(f"Missing required raw columns: {', '.join(missing)}")
+    try:
+        # Один источник правды для формата месяца — тот же, что валидирует конфиг и CLI.
+        month_start = pd.Timestamp(parse_month(month))
+    except ValueError as exc:
+        raise DataError(str(exc)) from exc
+    next_month_start = month_start + pd.DateOffset(months=1)
 
-    # Проверка на правильный формат Datetime
-    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
-        raise DataError(f"Неверный формат месяца (ожидается YYYY-MM): {month!r}")
+    # Берём только нужные колонки (п.2): остальные колонки TLC не копируем и не проверяем
+    # на пропуски. raw не меняется: в pandas 3 Copy-on-Write, присваивание ниже — в копию.
+    trips = raw.loc[:, list(RAW_REQUIRED_COLUMNS)].dropna()
+    pickup = trips["lpep_pickup_datetime"]
+    trips["duration_min"] = (trips["lpep_dropoff_datetime"] - pickup).dt.total_seconds() / 60
 
-    # Определеяем границы нужного месяца
-    period = pd.Period(month, freq="M")
-    month_start = period.start_time
-    next_month_start = (period + 1).start_time
+    # Одна маска на все условия (п.4–5): таргет лежит колонкой в той же таблице,
+    # поэтому строки всех колонок отбрасываются синхронно, индексы не разъезжаются.
+    in_month = (pickup >= month_start) & (pickup < next_month_start)
+    in_range = trips["duration_min"].between(filters.min_duration, filters.max_duration)
+    trips = trips.loc[in_month & in_range].rename(columns=_RAW_TO_PREPARED)
 
-    # Выбираем нужные колонки
-    df = raw.loc[:, list(RAW_REQUIRED_COLUMNS)].dropna(subset=list(RAW_REQUIRED_COLUMNS))
+    # Признаки времени считаем уже на отфильтрованных строках — меньше работы.
+    trips["pickup_hour"] = trips["pickup_datetime"].dt.hour
+    trips["pickup_weekday"] = trips["pickup_datetime"].dt.day_of_week  # пн = 0 … вс = 6
 
-    df["pickup_datetime"] = pd.to_datetime(df["lpep_pickup_datetime"]).astype("datetime64[us]")
-    dropoff = pd.to_datetime(df["lpep_dropoff_datetime"]).astype("datetime64[us]")
-
-    # Считаем длительность и сохраняем её колонкой в тот же df
-    df["duration_min"] = (dropoff - df["pickup_datetime"]).dt.total_seconds() / 60.0
-
-    # Фильтруем сам df по месяцу и длительности — все колонки фильтруются синхронно
-    mask = (
-        (df["pickup_datetime"] >= month_start)
-        & (df["pickup_datetime"] < next_month_start)
-        & (df["duration_min"] >= filters.min_duration)
-        & (df["duration_min"] <= filters.max_duration)
-    )
-    df = df.loc[mask].reset_index(drop=True)
-
-    # Вычисляем признаки из уже отфильтрованного pickup_datetime и собираем итог
-    result = pd.DataFrame(
-        {
-            "pickup_datetime": df["pickup_datetime"],
-            "pu_zone": df["PULocationID"],
-            "do_zone": df["DOLocationID"],
-            "trip_distance": df["trip_distance"],
-            "pickup_hour": df["pickup_datetime"].dt.hour,
-            "pickup_weekday": df["pickup_datetime"].dt.day_of_week,
-            "duration_min": df["duration_min"],
-        }
-    )
-
-    return result.astype(PREPARED_SCHEMA)
+    # Порядок колонок и dtype берём из PREPARED_SCHEMA (п.6): схема описана в одном месте.
+    return trips.loc[:, list(PREPARED_SCHEMA)].astype(PREPARED_SCHEMA).reset_index(drop=True)
