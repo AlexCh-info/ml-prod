@@ -1,13 +1,24 @@
-# Проверки перед каждым коммитом. Установка хука: `uv run pre-commit install`.
+# Проверки перед каждым коммитом. Установка хуков: `uv run pre-commit install`.
 # Ручной прогон по всему репозиторию: `uv run pre-commit run --all-files`.
+
+# `pre-commit install` ставит все три git-хука: DVC работает на post-checkout и pre-push.
+# Отдельный `dvc install` не нужен (и конфликтует: он хочет свой .git/hooks/pre-commit).
+default_install_hook_types: [pre-commit, post-checkout, pre-push]
+# Хуки без явного `stages` — только перед коммитом, а не на checkout/push.
+default_stages: [pre-commit]
+
 repos:
   # Общие проверки файлов (скачиваются pre-commit'ом в своё окружение).
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: check-yaml
+      # dvc.lock генерирует DVC и перезаписывает на каждом repro (длинные строки YAML
+      # он переносит с пробелом в конце). Правка хуком откатывалась бы снова и снова.
       - id: end-of-file-fixer
+        exclude: ^dvc\.lock$
       - id: trailing-whitespace
+        exclude: ^dvc\.lock$
       - id: check-added-large-files   # защита от случайного коммита parquet/моделей
         args: ["--maxkb=1024"]
 
@@ -33,3 +44,24 @@ repos:
         language: system
         types_or: [python, pyi]
         pass_filenames: false
+
+      # DVC: данные следуют за git. Версия dvc — из uv.lock, как у ruff и mypy.
+      - id: dvc-post-checkout
+        name: dvc checkout
+        # После `git checkout <ref>` рабочие данные приводятся к dvc.lock этого коммита.
+        entry: uv run --frozen dvc git-hook post-checkout
+        language: system
+        stages: [post-checkout]
+        always_run: true
+        pass_filenames: false
+        require_serial: true
+      - id: dvc-pre-push
+        name: dvc push
+        # Перед `git push` данные уходят в remote: коммит с dvc.lock без данных не уедет.
+        # Нужен поднятый стенд (`make up`), иначе push упадёт — это намеренно.
+        entry: uv run --frozen dvc git-hook pre-push
+        language: system
+        stages: [pre-push]
+        always_run: true
+        pass_filenames: false
+        require_serial: true

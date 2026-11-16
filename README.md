@@ -23,8 +23,9 @@ uv run pre-commit install
 editable-режиме, runtime- и dev-зависимости строго по `uv.lock`. Если `uv.lock` устарел
 относительно `pyproject.toml`, команда падает.
 
-`uv run pre-commit install` ставит git-хук: ruff, mypy и проверки файлов запускаются перед
-каждым коммитом.
+`uv run pre-commit install` ставит три git-хука:
+- `pre-commit`: ruff, mypy и проверки файлов перед каждым коммитом;
+- `post-checkout` и `pre-push`: синхронизация данных DVC (см. «Версионирование данных»).
 
 ## Запуск
 
@@ -56,6 +57,40 @@ uv run taxi build-features            # признаки зон по всем м
 и `s3://...`.
 
 Каталог `data/` в git не коммитится: данные версионирует DVC.
+
+## Версионирование данных (DVC)
+
+Пайплайн `ingest → prepare → features` описан в `dvc.yaml`, а хеши всех входов и выходов
+последнего прогона записаны в `dvc.lock`. В git лежат только эти два файла. Сами parquet
+хранятся в локальном кеше `.dvc/cache` и в remote `rustfs` (бакет `s3://dvc` на локальном
+стенде).
+
+Один раз после клонирования поднимите стенд (`make up`) и передайте DVC ключи RustFS из `.env`.
+Ключи пишутся в `.dvc/config.local`, а он в git не попадает:
+
+```bash
+set -a && source .env && set +a
+uv run dvc remote modify --local rustfs access_key_id "$RUSTFS_ACCESS_KEY"
+uv run dvc remote modify --local rustfs secret_access_key "$RUSTFS_SECRET_KEY"
+```
+
+| Команда | Что делает |
+|---|---|
+| `uv run dvc pull` | скачивает версию данных, записанную в текущем `dvc.lock`, без пересчёта |
+| `uv run dvc repro` | перезапускает только стадии, у которых изменились код, данные или параметры |
+| `uv run dvc push` | отправляет новые версии из кеша в RustFS |
+| `uv run dvc status` | показывает, какие стадии устарели и почему |
+| `uv run dvc dag` | рисует граф стадий |
+
+Как изменить данные, например добавить месяц: правка `data.months` в `configs/base.yaml` →
+`dvc repro` → `dvc push` → коммит `configs/base.yaml`, `dvc.lock` и `data/*/.gitignore`.
+Пересчитываются только новые месяцы и `features`.
+
+Данные следуют за git сами благодаря хукам из `pre-commit install`:
+- после `git checkout`/`git switch` хук выполняет `dvc checkout`, и в `data/` оказывается
+  версия из `dvc.lock` этого коммита (из локального кеша, без сети);
+- перед `git push` хук выполняет `dvc push`, поэтому коммит не уедет без своих данных.
+  Нужен поднятый стенд.
 
 ## Конфигурация
 
@@ -136,7 +171,9 @@ src/taxi_duration/    пакет (src-layout)
   data/ingest.py      загрузка месяца с повторами
   data/prepare.py     очистка поездок и таргет
   features/zone_stats.py  признаки зон за прошлые дни
-data/                 raw/, processed/, features/ (не в git)
+dvc.yaml, dvc.lock    пайплайн данных и хеши его последнего прогона
+.dvc/config           remote DVC (ключи — в config.local, не в git)
+data/                 raw/, processed/, features/ (не в git, версии — в DVC)
 tests/unit/           юнит-тесты
 ```
 

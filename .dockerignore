@@ -21,6 +21,11 @@ openspec/
 
 # Данные и артефакты (версионируются DVC / хранятся в RustFS (S3), а не в образе)
 data/
+# DVC: кеш растёт с каждой версией данных, в config.local — ключи S3
+.dvc/
+.dvcignore
+dvc.yaml
+dvc.lock
 mlruns/
 mlartifacts/
 reports/

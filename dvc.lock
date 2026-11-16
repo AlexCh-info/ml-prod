@@ -1,0 +1,89 @@
+schema: '2.0'
+stages:
+  ingest@2024-01:
+    cmd: uv run --frozen taxi ingest --month 2024-01
+    params:
+      configs/base.yaml:
+        data.url_template: 
+          https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_{month}.parquet
+    outs:
+    - path: data/raw/green_tripdata_2024-01.parquet
+      hash: md5
+      md5: 33f3af0093a4bea95512fbd0df7f1b84
+      size: 1362284
+  prepare@2024-01:
+    cmd: uv run --frozen taxi prepare --month 2024-01
+    deps:
+    - path: data/raw/green_tripdata_2024-01.parquet
+      hash: md5
+      md5: 33f3af0093a4bea95512fbd0df7f1b84
+      size: 1362284
+    - path: src/taxi_duration/data/prepare.py
+      hash: md5
+      md5: f5d6182cda403cc6ee3135992ba179a1
+      size: 6177
+    params:
+      configs/base.yaml:
+        data.filters:
+          min_duration: 1
+          max_duration: 60
+    outs:
+    - path: data/processed/trips_2024-01.parquet
+      hash: md5
+      md5: 6091cde839172ac9cc60b5bee913195f
+      size: 759774
+  features:
+    cmd: uv run --frozen taxi build-features
+    deps:
+    - path: data/processed
+      hash: md5
+      md5: 1eecea05de4a3ca7d97f5270041b875b.dir
+      size: 1479024
+      nfiles: 3
+    - path: src/taxi_duration/features/zone_stats.py
+      hash: md5
+      md5: d8288f687c71b297f07f21aa1f1f1d56
+      size: 5241
+    params:
+      configs/base.yaml:
+        data.months:
+        - 2024-01
+        - 2024-02
+        features.window_days: 7
+    outs:
+    - path: data/features/zone_stats.parquet
+      hash: md5
+      md5: 31c49fadc1df710a35b1ff1234b45bff
+      size: 135306
+  ingest@2024-02:
+    cmd: uv run --frozen taxi ingest --month 2024-02
+    params:
+      configs/base.yaml:
+        data.url_template: 
+          https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_{month}.parquet
+    outs:
+    - path: data/raw/green_tripdata_2024-02.parquet
+      hash: md5
+      md5: 8d7c4dbf6c7d21d51eb8c5a519043a74
+      size: 1283805
+  prepare@2024-02:
+    cmd: uv run --frozen taxi prepare --month 2024-02
+    deps:
+    - path: data/raw/green_tripdata_2024-02.parquet
+      hash: md5
+      md5: 8d7c4dbf6c7d21d51eb8c5a519043a74
+      size: 1283805
+    - path: src/taxi_duration/data/prepare.py
+      hash: md5
+      md5: f5d6182cda403cc6ee3135992ba179a1
+      size: 6177
+    params:
+      configs/base.yaml:
+        data.filters:
+          min_duration: 1
+          max_duration: 60
+    outs:
+    - path: data/processed/trips_2024-02.parquet
+      hash: md5
+      md5: 17636bcc7c81b66e5d1af82328c62a35
+      size: 719204
