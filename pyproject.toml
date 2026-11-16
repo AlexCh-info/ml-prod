@@ -5,10 +5,14 @@ description = "Учебный end-to-end MLOps-проект: прогноз дл
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "httpx>=0.28.1",
+    "pandas>=3.1.1",
+    "pyarrow>=26.0.1",
     "pydantic>=2.14.3",
     "pydantic-settings>=2.16.3",
     "python-json-logger>=4.2.0",
     "pyyaml>=6.0.3",
+    "s3fs>=2026.9.0",
     "typer>=0.29.1",
 ]
 
@@ -28,7 +32,9 @@ addopts = ["-ra", "--strict-markers", "--strict-config"]
 
 [dependency-groups]
 dev = [
+    "dvc[s3]>=3.67.1",
     "mypy>=2.4.1",
+    "pandas-stubs>=3.1.0.261029",
     "pre-commit>=4.7.0",
     "pytest>=9.2.0",
     "ruff>=0.17.5",
@@ -65,6 +71,11 @@ strict = true
 mypy_path = "src"
 packages = ["taxi_duration", "tests"]
 plugins = ["pydantic.mypy"]
+
+# У этих библиотек нет аннотаций типов (py.typed) и stub-пакетов на PyPI.
+[[tool.mypy.overrides]]
+module = ["fsspec.*", "pyarrow.*", "s3fs.*"]
+ignore_missing_imports = true
 
 [tool.pydantic-mypy]
 init_forbid_extra = true

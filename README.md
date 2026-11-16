@@ -34,6 +34,29 @@ uv run taxi version         # версия пакета
 uv run taxi config show     # итоговый конфиг (секреты замаскированы)
 ```
 
+## Данные
+
+Источник: открытые месячные parquet NYC TLC Green Taxi (около 1–2 MB и 50–70 тысяч поездок
+в месяц). Шаги запускаются по порядку, каждый читает результат предыдущего:
+
+```bash
+uv run taxi ingest --month 2024-01    # скачать сырой месяц (повторный запуск пропускается)
+uv run taxi prepare --month 2024-01   # таргет duration_min, фильтры 1..60 мин и по месяцу
+uv run taxi build-features            # признаки зон по всем месяцам из data.months
+```
+
+| Шаг | Результат | Что важно |
+|---|---|---|
+| `ingest` | `data/raw/green_tripdata_YYYY-MM.parquet` | атомарная запись, 3 попытки, `--force` качает заново |
+| `prepare` | `data/processed/trips_YYYY-MM.parquet` | схема фиксирована (`PREPARED_SCHEMA`) |
+| `build-features` | `data/features/zone_stats.parquet` | окно за прошлые 7 дней, без текущего дня |
+
+Месяцы, пороги фильтров и окно признаков задаются в секциях `data` и `features`
+файла `configs/base.yaml`. Корень данных `paths.data_root` может быть и локальной папкой,
+и `s3://...`.
+
+Каталог `data/` в git не коммитится: данные версионирует DVC.
+
 ## Конфигурация
 
 Настройки собираются из нескольких источников. Каждый следующий в списке перекрывает
@@ -109,6 +132,11 @@ src/taxi_duration/    пакет (src-layout)
   config.py           типизированные настройки (pydantic-settings)
   logging_setup.py    настройка логирования из шаблона
   errors.py           иерархия ожидаемых ошибок
+  storage.py          пути данных как fsspec URI, атомарная запись parquet
+  data/ingest.py      загрузка месяца с повторами
+  data/prepare.py     очистка поездок и таргет
+  features/zone_stats.py  признаки зон за прошлые дни
+data/                 raw/, processed/, features/ (не в git)
 tests/unit/           юнит-тесты
 ```
 

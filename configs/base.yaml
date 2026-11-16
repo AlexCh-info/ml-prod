@@ -14,8 +14,27 @@ logging:
 
 paths:
   # fsspec URI: локально каталог, в Airflow — s3://lake/...
-  data_dir: data
+  data_root: data         # raw/, processed/, features/ лежат под этим корнем
   artifacts_dir: artifacts
+
+data:
+  # Источник: открытые месячные parquet NYC TLC. {month} = YYYY-MM.
+  url_template: https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_{month}.parquet
+  # Месяцы, которые собирает DVC-пайплайн. Параметр стадий ingest/prepare/features:
+  # изменение списка → dvc repro догрузит и пересчитает только нужное.
+  months:
+    - "2024-01"           # формат YYYY-MM, проверяется при загрузке конфига
+  filters:                # пороги очистки в prepare (минуты)
+    min_duration: 1
+    max_duration: 60
+  download:
+    timeout_s: 60
+    max_attempts: 3       # всего попыток; 404 не повторяется
+    backoff_base_s: 1     # пауза перед повтором: 1 s, 2 s, ...
+
+features:
+  # Признаки зоны посадки считаются по строго прошлым дням: [D - window_days, D - 1].
+  window_days: 7
 
 mlflow:
   tracking_uri: http://localhost:5001   # порт 5000 на macOS занят AirPlay
