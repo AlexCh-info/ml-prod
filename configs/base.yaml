@@ -32,6 +32,10 @@ data:
     max_attempts: 3       # всего попыток; 404 не повторяется
     backoff_base_s: 1     # пауза перед повтором: 1 s, 2 s, ...
 
+features:
+  # Признаки зоны посадки считаются по строго прошлым дням: [D - window_days, D - 1].
+  window_days: 7
+
 mlflow:
   tracking_uri: http://localhost:5001   # порт 5000 на macOS занят AirPlay
 

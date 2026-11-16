@@ -133,6 +133,12 @@ class DataSettings(_Section):
         return value
 
 
+class FeaturesSettings(_Section):
+    """Признаки зон (этап features). Ключ ``features`` — параметр DVC-стадии."""
+
+    window_days: int = Field(default=7, ge=1)  # окно агрегатов по прошлым дням
+
+
 def parse_month(month: str) -> date:
     """Проверить строку ``YYYY-MM`` и вернуть первый день месяца.
 
@@ -188,6 +194,7 @@ class Settings(BaseSettings):
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     paths: PathsSettings = Field(default_factory=PathsSettings)
     data: DataSettings = Field(default_factory=DataSettings)
+    features: FeaturesSettings = Field(default_factory=FeaturesSettings)
     mlflow: MlflowSettings = Field(default_factory=MlflowSettings)
     s3: S3Settings = Field(default_factory=S3Settings)
 

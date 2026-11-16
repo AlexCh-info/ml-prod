@@ -6,9 +6,19 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
+from pathlib import Path
 from typing import Any
 
+import pandas as pd
+from fsspec.core import url_to_fs
+from fsspec.implementations.local import LocalFileSystem
+
 from taxi_duration.config import S3Settings
+from taxi_duration.errors import DataError
+
+_FILE_MODE = 0o644  # mkstemp даёт 0600; данные должны читать и другие пользователи
 
 RAW_DIR = "raw"
 PROCESSED_DIR = "processed"
@@ -48,3 +58,43 @@ def storage_options(uri: str, s3: S3Settings) -> dict[str, Any]:
     if s3.secret_access_key is not None:
         options["secret"] = s3.secret_access_key.get_secret_value()
     return options
+
+
+def read_parquet(
+    uri: str, storage_options: dict[str, Any] | None = None, *, hint: str = ""
+) -> pd.DataFrame:
+    """Прочитать parquet по URI.
+
+    Raises:
+        DataError: файла нет (в сообщении — ``hint``, например какую команду запустить).
+    """
+    fs, path = url_to_fs(uri, **(storage_options or {}))
+    if not fs.exists(path):
+        suffix = f" ({hint})" if hint else ""
+        raise DataError(f"Input file not found: {uri}{suffix}")
+    return pd.read_parquet(uri, storage_options=storage_options or None)
+
+
+def write_parquet(
+    df: pd.DataFrame, uri: str, storage_options: dict[str, Any] | None = None
+) -> None:
+    """Записать parquet атомарно: читатель видит либо старый файл, либо новый целиком.
+
+    Локально — временный файл рядом с целью и ``os.replace``; для S3 — одна загрузка
+    объекта (он появляется только после её завершения).
+    """
+    fs, path = url_to_fs(uri, **(storage_options or {}))
+    if not isinstance(fs, LocalFileSystem):
+        df.to_parquet(uri, index=False, storage_options=storage_options or None)
+        return
+
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.", suffix=".part")
+    os.close(fd)
+    try:
+        df.to_parquet(tmp_name, index=False)
+        os.chmod(tmp_name, _FILE_MODE)
+        os.replace(tmp_name, target)
+    finally:
+        Path(tmp_name).unlink(missing_ok=True)

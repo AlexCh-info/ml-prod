@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated, Any
 
+import pandas as pd
 import typer
 import yaml
 from typer.core import TyperGroup
@@ -20,9 +21,18 @@ from typer.exceptions import TyperException
 from taxi_duration import __version__
 from taxi_duration.config import Settings, load_settings, parse_month
 from taxi_duration.data.ingest import ingest_month
-from taxi_duration.errors import TaxiError
+from taxi_duration.data.prepare import prepare_trips
+from taxi_duration.errors import DataError, TaxiError
+from taxi_duration.features.zone_stats import build_zone_stats
 from taxi_duration.logging_setup import setup_logging
-from taxi_duration.storage import storage_options
+from taxi_duration.storage import (
+    processed_month_uri,
+    raw_month_uri,
+    read_parquet,
+    storage_options,
+    write_parquet,
+    zone_stats_uri,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +135,62 @@ def ingest(
         data=settings.data,
         storage_options=storage_options(data_root, settings.s3),
         force=force,
+    )
+
+
+@app.command()
+def prepare(ctx: typer.Context, month: MonthOption) -> None:
+    """Очистить сырые поездки месяца и посчитать таргет: raw/ → processed/."""
+    settings = _settings(ctx)
+    data_root = settings.paths.data_root
+    options = storage_options(data_root, settings.s3)
+    source = raw_month_uri(data_root, month)
+    target = processed_month_uri(data_root, month)
+
+    raw = read_parquet(source, options, hint=f"run `taxi ingest --month {month}` first")
+    trips = prepare_trips(raw, month, settings.data.filters)
+    write_parquet(trips, target, options)
+    logger.info(
+        "Prepared %s: %d -> %d rows (%d dropped) -> %s",
+        month,
+        len(raw),
+        len(trips),
+        len(raw) - len(trips),
+        target,
+    )
+
+
+@app.command("build-features")
+def build_features(ctx: typer.Context) -> None:
+    """Посчитать признаки зон по всем месяцам из data.months: processed/ → features/."""
+    settings = _settings(ctx)
+    data_root = settings.paths.data_root
+    options = storage_options(data_root, settings.s3)
+    months = settings.data.months
+    if not months:
+        raise DataError("data.months is empty: nothing to build features from")
+
+    trips = pd.concat(
+        [
+            read_parquet(
+                processed_month_uri(data_root, month),
+                options,
+                hint=f"run `taxi prepare --month {month}` first",
+            )
+            for month in months
+        ],
+        ignore_index=True,
+    )
+    stats = build_zone_stats(trips, settings.features.window_days)
+    target = zone_stats_uri(data_root)
+    write_parquet(stats, target, options)
+    logger.info(
+        "Built zone stats for %s: %d trips -> %d rows (%d zones) -> %s",
+        ", ".join(months),
+        len(trips),
+        len(stats),
+        stats["pu_zone"].nunique(),
+        target,
     )
 
 
