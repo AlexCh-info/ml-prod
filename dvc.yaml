@@ -1,0 +1,39 @@
+# Пайплайн данных: ingest → prepare → features.
+# `dvc repro` перезапускает только стадии, у которых изменились deps или params
+# (сравнение с хешами в dvc.lock). `dvc dag` рисует граф.
+#
+# Месяцы берутся из того же configs/base.yaml, что читает приложение: один источник правды.
+# Пути outs совпадают с paths.data_root = data (storage.py); при другом корне их надо поменять.
+vars:
+  - configs/base.yaml:data
+
+stages:
+  # Одна стадия на месяц (ingest@2024-01, ...): каждый месяц хешируется и кешируется отдельно,
+  # добавление месяца не трогает уже скачанные.
+  ingest:
+    foreach: ${data.months}
+    do:
+      cmd: uv run --frozen taxi ingest --month ${item}
+      # Кода в deps нет намеренно: содержимое файла определяет источник (URL), а не наш код.
+      # Иначе рефакторинг ingest.py заново скачивал бы все месяцы.
+      params:
+        - configs/base.yaml:
+            - data.url_template
+      outs:
+        - data/raw/green_tripdata_${item}.parquet
+
+  prepare:
+    foreach: ${data.months}
+    do:
+      cmd: uv run --frozen taxi prepare --month ${item}
+      deps:
+        - data/raw/green_tripdata_${item}.parquet
+        - src/taxi_duration/data/prepare.py
+      # Порог длительности поменялся → prepare (и всё после него) пересчитывается.
+      params:
+        - configs/base.yaml:
+            - data.filters
+      outs:
+        - data/processed/trips_${item}.parquet
+
+  # Стадия features — задача 3.3 [YOU].
