@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
 import typer
 import yaml
@@ -18,9 +18,11 @@ from typer.core import TyperGroup
 from typer.exceptions import TyperException
 
 from taxi_duration import __version__
-from taxi_duration.config import Settings, load_settings
+from taxi_duration.config import Settings, load_settings, parse_month
+from taxi_duration.data.ingest import ingest_month
 from taxi_duration.errors import TaxiError
 from taxi_duration.logging_setup import setup_logging
+from taxi_duration.storage import storage_options
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +92,40 @@ def _settings(ctx: typer.Context) -> Settings:
 def version() -> None:
     """Показать версию пакета."""
     typer.echo(__version__)
+
+
+def _validate_month(value: str) -> str:
+    """Callback опции ``--month``: неверный формат — ошибка использования (код 2)."""
+    try:
+        parse_month(value)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    return value
+
+
+MonthOption = Annotated[
+    str, typer.Option("--month", help="Месяц в формате YYYY-MM.", callback=_validate_month)
+]
+
+
+@app.command()
+def ingest(
+    ctx: typer.Context,
+    month: MonthOption,
+    force: Annotated[
+        bool, typer.Option("--force", help="Скачать заново, даже если файл уже есть.")
+    ] = False,
+) -> None:
+    """Скачать месячный parquet NYC TLC Green Taxi в <data_root>/raw/."""
+    settings = _settings(ctx)
+    data_root = settings.paths.data_root
+    ingest_month(
+        month,
+        data_root=data_root,
+        data=settings.data,
+        storage_options=storage_options(data_root, settings.s3),
+        force=force,
+    )
 
 
 @config_app.command("show")
