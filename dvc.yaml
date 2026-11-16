@@ -36,4 +36,14 @@ stages:
       outs:
         - data/processed/trips_${item}.parquet
 
-  # Стадия features — задача 3.3 [YOU].
+  features:
+    cmd: uv run --frozen taxi build-features
+    deps:
+      - data/processed
+      - src/taxi_duration/features/zone_stats.py
+    params:
+      - configs/base.yaml:
+        - data.months
+        - features.window_days
+    outs:
+      - data/features/zone_stats.parquet
