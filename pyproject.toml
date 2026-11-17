@@ -30,6 +30,9 @@ packages = ["src/taxi_duration"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["-ra", "--strict-markers", "--strict-config"]
+markers = [
+    "integration: end-to-end тесты с настоящими инструментами (GX и т.п.); быстрые: -m 'not integration'",
+]
 
 [dependency-groups]
 dev = [
