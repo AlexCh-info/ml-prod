@@ -5,6 +5,7 @@ description = "Учебный end-to-end MLOps-проект: прогноз дл
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "great-expectations>=1.25.0",
     "httpx>=0.28.1",
     "pandas>=3.1.1",
     "pyarrow>=26.0.1",

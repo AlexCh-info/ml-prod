@@ -29,3 +29,7 @@ htmlcov/
 
 # macOS
 .DS_Store
+
+# Great Expectations: результаты проверок, Data Docs и секреты — производные, не коммитим.
+# Конфиг gx/great_expectations.yml коммитим; наборы ожиданий — источник правды в коде.
+gx/uncommitted/
