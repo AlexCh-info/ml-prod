@@ -147,6 +147,11 @@ def suite_parameters(month: str) -> dict[str, str]:
     return {"month_start": start.isoformat(), "month_end": end.isoformat()}
 
 
+def run_name(stage: Stage, month: str) -> str:
+    """Имя прогона в Data Docs и хранилище результатов GX: ``raw_2024-01``."""
+    return f"{stage.value}_{month}"
+
+
 def summarize_result(
     result: Mapping[str, Any], *, stage: Stage, month: str, run_time: datetime
 ) -> ValidationReport:
@@ -220,6 +225,7 @@ def run_validation(
     # Ленивый импорт: GX нужен только этой команде, а не каждому запуску CLI.
     import great_expectations as gx
     from great_expectations.checkpoint.actions import UpdateDataDocsAction, ValidationAction
+    from great_expectations.core.run_identifier import RunIdentifier
 
     context = gx.get_context(mode="file", project_root_dir=str(project_root))
     batch_definition = _batch_definition(context, stage)
@@ -241,7 +247,11 @@ def run_validation(
     run_time = datetime.now(UTC)
     logger.info("Validating %s %s: %d rows against suite %s", stage, month, len(df), suite.name)
     checkpoint_result = checkpoint.run(
-        batch_parameters={"dataframe": df}, expectation_parameters=suite_parameters(month)
+        batch_parameters={"dataframe": df},
+        expectation_parameters=suite_parameters(month),
+        # Batch ID у dataframe-asset одинаковый для всех месяцев: без run_name в Data Docs
+        # не видно, какой месяц провалился. То же время, что в JSON-отчёте.
+        run_id=RunIdentifier(run_name=run_name(stage, month), run_time=run_time),
     )
     # Один validation definition на checkpoint → ровно один результат.
     (suite_result,) = checkpoint_result.run_results.values()

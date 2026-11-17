@@ -20,7 +20,7 @@ stages:
       size: 1362284
     - path: reports/validation/raw_2024-01.json
       hash: md5
-      md5: 108f8110e87e66cb98b6de1607ea2a48
+      md5: 9387306f0c793de59a13df3f7e5b2964
       size: 246
     - path: src/taxi_duration/data/prepare.py
       hash: md5
@@ -46,7 +46,7 @@ stages:
       nfiles: 3
     - path: reports/validation
       hash: md5
-      md5: 5c74f80fe056979b75f0516fd932a244.dir
+      md5: 0366ac7fb6df09d90dd941a51cc4ca9f.dir
       size: 1004
       nfiles: 4
     - path: src/taxi_duration/features/zone_stats.py
@@ -84,7 +84,7 @@ stages:
       size: 1283805
     - path: reports/validation/raw_2024-02.json
       hash: md5
-      md5: 8ef8ef110a3420af412d1879bba475ec
+      md5: c27cbc538c24b1177f383a065c1e7a41
       size: 246
     - path: src/taxi_duration/data/prepare.py
       hash: md5
@@ -109,13 +109,13 @@ stages:
       size: 1362284
     - path: src/taxi_duration/validation
       hash: md5
-      md5: fb48b0ef5c8b3b2ee2f6d77459efa63b.dir
-      size: 26260
+      md5: d515cea4096a1a5592500968cb0b87c1.dir
+      size: 26858
       nfiles: 3
     outs:
     - path: reports/validation/raw_2024-01.json
       hash: md5
-      md5: 108f8110e87e66cb98b6de1607ea2a48
+      md5: 9387306f0c793de59a13df3f7e5b2964
       size: 246
   validate_raw@2024-02:
     cmd: uv run --frozen taxi validate --month 2024-02 --stage raw
@@ -126,13 +126,13 @@ stages:
       size: 1283805
     - path: src/taxi_duration/validation
       hash: md5
-      md5: fb48b0ef5c8b3b2ee2f6d77459efa63b.dir
-      size: 26260
+      md5: d515cea4096a1a5592500968cb0b87c1.dir
+      size: 26858
       nfiles: 3
     outs:
     - path: reports/validation/raw_2024-02.json
       hash: md5
-      md5: 8ef8ef110a3420af412d1879bba475ec
+      md5: c27cbc538c24b1177f383a065c1e7a41
       size: 246
   validate_prepared@2024-01:
     cmd: uv run --frozen taxi validate --month 2024-01 --stage prepared
@@ -143,13 +143,13 @@ stages:
       size: 759774
     - path: src/taxi_duration/validation
       hash: md5
-      md5: fb48b0ef5c8b3b2ee2f6d77459efa63b.dir
-      size: 26260
+      md5: d515cea4096a1a5592500968cb0b87c1.dir
+      size: 26858
       nfiles: 3
     outs:
     - path: reports/validation/prepared_2024-01.json
       hash: md5
-      md5: 823e7534fd2e4a06e446bf037a6d6fe8
+      md5: fa65d78611a5dce69c695bb044abcfeb
       size: 256
   validate_prepared@2024-02:
     cmd: uv run --frozen taxi validate --month 2024-02 --stage prepared
@@ -160,11 +160,11 @@ stages:
       size: 719204
     - path: src/taxi_duration/validation
       hash: md5
-      md5: fb48b0ef5c8b3b2ee2f6d77459efa63b.dir
-      size: 26260
+      md5: d515cea4096a1a5592500968cb0b87c1.dir
+      size: 26858
       nfiles: 3
     outs:
     - path: reports/validation/prepared_2024-02.json
       hash: md5
-      md5: eee7d8258724f94221a1198f64526bcc
+      md5: 89656efa56ab145919a2376081fb2d4e
       size: 256

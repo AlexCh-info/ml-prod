@@ -121,7 +121,10 @@ def test_valid_raw_month_exits_0_and_writes_report(project: Path) -> None:
     assert report["success"] is True
     assert (report["failed_critical"], report["failed_warning"]) == (0, 0)
     assert report["evaluated"] >= 7
-    assert (project / "gx" / "uncommitted" / "data_docs" / "local_site" / "index.html").is_file()
+    site = project / "gx" / "uncommitted" / "data_docs" / "local_site"
+    assert (site / "index.html").is_file()
+    # Прогон назван по стадии и месяцу: в Data Docs видно, какой месяц проверялся.
+    assert (site / "validations" / "raw_trips" / f"raw_{MONTH}").is_dir()
 
 
 def test_valid_prepared_month_exits_0(project: Path) -> None:
