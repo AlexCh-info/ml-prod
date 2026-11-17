@@ -1,0 +1,12 @@
+{
+  "stage": "prepared",
+  "month": "2024-02",
+  "suite_name": "prepared_trips",
+  "success": true,
+  "evaluated": 10,
+  "failed_critical": 0,
+  "failed_warning": 0,
+  "success_percent": 100.0,
+  "run_time": "2026-11-17T08:33:07+00:00",
+  "failures": []
+}
