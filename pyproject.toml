@@ -78,6 +78,12 @@ plugins = ["pydantic.mypy"]
 module = ["fsspec.*", "pyarrow.*", "s3fs.*"]
 ignore_missing_imports = true
 
+# GX реэкспортирует публичный API (gxe.ExpectColumnToExist, gx.ExpectationSuite...) без __all__,
+# а strict включает no_implicit_reexport. Разрешаем неявный реэкспорт только для GX.
+[[tool.mypy.overrides]]
+module = ["great_expectations.*"]
+implicit_reexport = true
+
 [tool.pydantic-mypy]
 init_forbid_extra = true
 init_typed = true

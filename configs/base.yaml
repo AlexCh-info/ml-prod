@@ -16,6 +16,7 @@ paths:
   # fsspec URI: локально каталог, в Airflow — s3://lake/...
   data_root: data         # raw/, processed/, features/ лежат под этим корнем
   artifacts_dir: artifacts
+  reports_dir: reports    # validation/<stage>_<month>.json — DVC metrics (этап 03)
 
 data:
   # Источник: открытые месячные parquet NYC TLC. {month} = YYYY-MM.

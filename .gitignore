@@ -33,3 +33,8 @@ htmlcov/
 # Great Expectations: результаты проверок, Data Docs и секреты — производные, не коммитим.
 # Конфиг gx/great_expectations.yml коммитим; наборы ожиданий — источник правды в коде.
 gx/uncommitted/
+# Производные от src/taxi_duration/validation/: runner пересоздаёт их при каждом запуске
+# (с новыми id), коммит дал бы шумный diff. Источник правды — код.
+gx/expectations/*.json
+gx/validation_definitions/
+gx/checkpoints/
