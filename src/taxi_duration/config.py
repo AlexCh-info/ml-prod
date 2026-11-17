@@ -80,6 +80,8 @@ class PathsSettings(_Section):
     # Строки, а не Path: это fsspec URI (data или s3://lake/...), Path сломал бы "s3://".
     data_root: str = "data"
     artifacts_dir: str = "artifacts"
+    # Отчёты проверок (GX, позже Evidently). JSON-отчёты валидации — DVC metrics.
+    reports_dir: str = "reports"
 
 
 class FilterSettings(_Section):

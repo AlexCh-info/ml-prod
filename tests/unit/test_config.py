@@ -165,7 +165,9 @@ def test_repo_base_yaml_defines_data_section(
     monkeypatch.chdir(repo_root)
     settings = load_settings()
     assert settings.paths.data_root == "data"
-    assert settings.data.months == ["2024-01"]
+    # Не весь список: месяцы добавляются по мере этапов (v2 = 2024-01..02, дрейф — 2024-04+),
+    # и полное сравнение ломалось бы на каждом. Инвариант — train v1 = 2024-01 первым.
+    assert settings.data.months[0] == "2024-01"
     assert (settings.data.filters.min_duration, settings.data.filters.max_duration) == (1, 60)
     assert "{month}" in settings.data.url_template
 

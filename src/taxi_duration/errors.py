@@ -16,3 +16,7 @@ class ConfigError(TaxiError):
 
 class DataError(TaxiError):
     """Входные данные отсутствуют или не соответствуют ожиданиям."""
+
+
+class DataValidationError(DataError):
+    """Данные нарушили хотя бы одно critical-ожидание контракта (этап 03, quality gate)."""

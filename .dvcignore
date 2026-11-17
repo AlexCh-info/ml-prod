@@ -1,3 +1,8 @@
 # Add patterns of files dvc should ignore, which could improve
 # the performance. Learn more at
 # https://dvc.org/doc/user-guide/dvcignore
+
+# Байткод Python: Python пересоздаёт его сам, не меняя исходники. Без этого каталог кода
+# в deps стадии (src/taxi_duration/validation) считался бы изменённым после любого запуска.
+__pycache__/
+*.py[cod]

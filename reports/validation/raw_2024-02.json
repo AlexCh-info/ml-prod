@@ -1,0 +1,12 @@
+{
+  "stage": "raw",
+  "month": "2024-02",
+  "suite_name": "raw_trips",
+  "success": true,
+  "evaluated": 14,
+  "failed_critical": 0,
+  "failed_warning": 0,
+  "success_percent": 100.0,
+  "run_time": "2026-11-17T09:01:24+00:00",
+  "failures": []
+}

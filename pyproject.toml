@@ -5,6 +5,7 @@ description = "Учебный end-to-end MLOps-проект: прогноз дл
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "great-expectations>=1.25.0",
     "httpx>=0.28.1",
     "pandas>=3.1.1",
     "pyarrow>=26.0.1",
@@ -29,6 +30,9 @@ packages = ["src/taxi_duration"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["-ra", "--strict-markers", "--strict-config"]
+markers = [
+    "integration: end-to-end тесты с настоящими инструментами (GX и т.п.); быстрые: -m 'not integration'",
+]
 
 [dependency-groups]
 dev = [
@@ -76,6 +80,12 @@ plugins = ["pydantic.mypy"]
 [[tool.mypy.overrides]]
 module = ["fsspec.*", "pyarrow.*", "s3fs.*"]
 ignore_missing_imports = true
+
+# GX реэкспортирует публичный API (gxe.ExpectColumnToExist, gx.ExpectationSuite...) без __all__,
+# а strict включает no_implicit_reexport. Разрешаем неявный реэкспорт только для GX.
+[[tool.mypy.overrides]]
+module = ["great_expectations.*"]
+implicit_reexport = true
 
 [tool.pydantic-mypy]
 init_forbid_extra = true

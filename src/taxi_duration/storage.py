@@ -6,8 +6,10 @@
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +25,7 @@ _FILE_MODE = 0o644  # mkstemp даёт 0600; данные должны чита�
 RAW_DIR = "raw"
 PROCESSED_DIR = "processed"
 FEATURES_DIR = "features"
+VALIDATION_DIR = "validation"
 
 
 def join_uri(root: str, *parts: str) -> str:
@@ -43,6 +46,11 @@ def processed_month_uri(data_root: str, month: str) -> str:
 def zone_stats_uri(data_root: str) -> str:
     """``<data_root>/features/zone_stats.parquet`` — признаки зон по всем месяцам."""
     return join_uri(data_root, FEATURES_DIR, "zone_stats.parquet")
+
+
+def validation_report_uri(reports_dir: str, stage: str, month: str) -> str:
+    """``<reports_dir>/validation/<stage>_YYYY-MM.json`` — отчёт проверки (DVC metrics)."""
+    return join_uri(reports_dir, VALIDATION_DIR, f"{stage}_{month}.json")
 
 
 def storage_options(uri: str, s3: S3Settings) -> dict[str, Any]:
@@ -87,13 +95,29 @@ def write_parquet(
     if not isinstance(fs, LocalFileSystem):
         df.to_parquet(uri, index=False, storage_options=storage_options or None)
         return
+    _atomic_local_write(Path(path), lambda tmp: df.to_parquet(tmp, index=False))
 
-    target = Path(path)
+
+def write_json(
+    payload: Mapping[str, Any], uri: str, storage_options: dict[str, Any] | None = None
+) -> None:
+    """Записать JSON (UTF-8, с отступами) атомарно, как ``write_parquet``."""
+    text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    fs, path = url_to_fs(uri, **(storage_options or {}))
+    if not isinstance(fs, LocalFileSystem):
+        with fs.open(path, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        return
+    _atomic_local_write(Path(path), lambda tmp: Path(tmp).write_text(text, encoding="utf-8"))
+
+
+def _atomic_local_write(target: Path, write: Callable[[str], object]) -> None:
+    """Записать во временный файл рядом с ``target`` и переименовать (``os.replace`` атомарен)."""
     target.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.", suffix=".part")
     os.close(fd)
     try:
-        df.to_parquet(tmp_name, index=False)
+        write(tmp_name)
         os.chmod(tmp_name, _FILE_MODE)
         os.replace(tmp_name, target)
     finally:

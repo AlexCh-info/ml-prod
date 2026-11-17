@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Annotated, Any
 
 import pandas as pd
@@ -30,9 +31,11 @@ from taxi_duration.storage import (
     raw_month_uri,
     read_parquet,
     storage_options,
+    validation_report_uri,
     write_parquet,
     zone_stats_uri,
 )
+from taxi_duration.validation.runner import Stage, run_validation
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +194,42 @@ def build_features(ctx: typer.Context) -> None:
         len(stats),
         stats["pu_zone"].nunique(),
         target,
+    )
+
+
+@app.command()
+def validate(
+    ctx: typer.Context,
+    month: MonthOption,
+    stage: Annotated[
+        Stage, typer.Option("--stage", help="Какие данные проверять: raw/ или processed/.")
+    ],
+    no_docs: Annotated[
+        bool, typer.Option("--no-docs", help="Не перестраивать HTML Data Docs.")
+    ] = False,
+) -> None:
+    """Проверить данные месяца контрактом GX: critical-провал → код 1, отчёт в reports/validation/.
+
+    Запускать из корня репозитория: там лежит контекст gx/.
+    """
+    settings = _settings(ctx)
+    data_root = settings.paths.data_root
+    if stage is Stage.RAW:
+        source, hint = raw_month_uri(data_root, month), f"run `taxi ingest --month {month}` first"
+    else:
+        source = processed_month_uri(data_root, month)
+        hint = f"run `taxi prepare --month {month}` first"
+    df = read_parquet(source, storage_options(data_root, settings.s3), hint=hint)
+
+    reports_dir = settings.paths.reports_dir
+    run_validation(
+        df,
+        stage=stage,
+        month=month,
+        project_root=Path.cwd(),
+        report_uri=validation_report_uri(reports_dir, stage.value, month),
+        storage_options=storage_options(reports_dir, settings.s3),
+        update_docs=not no_docs,
     )
 
 

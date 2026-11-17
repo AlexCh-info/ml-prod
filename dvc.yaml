@@ -1,4 +1,4 @@
-# Пайплайн данных: ingest → prepare → features.
+# Пайплайн данных: ingest → validate_raw → prepare → validate_prepared → features.
 # `dvc repro` перезапускает только стадии, у которых изменились deps или params
 # (сравнение с хешами в dvc.lock). `dvc dag` рисует граф.
 #
@@ -22,12 +22,31 @@ stages:
       outs:
         - data/raw/green_tripdata_${item}.parquet
 
+  # Quality gate сырых данных (этап 03). Провал critical-ожидания → код 1 → dvc repro
+  # останавливается, и стадии ниже по графу (prepare, features) не выполняются.
+  validate_raw:
+    foreach: ${data.months}
+    do:
+      cmd: uv run --frozen taxi validate --month ${item} --stage raw
+      deps:
+        - data/raw/green_tripdata_${item}.parquet
+        # Контракт и runner: изменили ожидания → данные перепроверяются.
+        - src/taxi_duration/validation
+      # metrics, а не outs: маленький JSON хранится в git (cache: false), его читают
+      # `dvc metrics show` / `dvc metrics diff` — динамика качества данных по коммитам.
+      metrics:
+        - reports/validation/raw_${item}.json:
+            cache: false
+
   prepare:
     foreach: ${data.months}
     do:
       cmd: uv run --frozen taxi prepare --month ${item}
       deps:
         - data/raw/green_tripdata_${item}.parquet
+        # Порядок стадий в DVC задаёт только граф deps → outs. Зависимость от отчёта
+        # validate_raw ставит prepare строго после проверки (и не даёт запустить его без неё).
+        - reports/validation/raw_${item}.json
         - src/taxi_duration/data/prepare.py
       # Порог длительности поменялся → prepare (и всё после него) пересчитывается.
       params:
@@ -36,10 +55,24 @@ stages:
       outs:
         - data/processed/trips_${item}.parquet
 
+  # Quality gate подготовленных данных: контракт PREPARED_SCHEMA перед построением признаков.
+  validate_prepared:
+    foreach: ${data.months}
+    do:
+      cmd: uv run --frozen taxi validate --month ${item} --stage prepared
+      deps:
+        - data/processed/trips_${item}.parquet
+        - src/taxi_duration/validation
+      metrics:
+        - reports/validation/prepared_${item}.json:
+            cache: false
+
   features:
     cmd: uv run --frozen taxi build-features
     deps:
       - data/processed
+      # Каталог целиком: features ждёт validate_prepared всех месяцев из data.months.
+      - reports/validation
       - src/taxi_duration/features/zone_stats.py
     params:
       - configs/base.yaml:
