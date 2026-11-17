@@ -1,4 +1,3 @@
-
 # Welcome to Great Expectations! Always know what to expect from your data.
 #
 # Here you can define datasources, batch kwargs generators, integrations and
@@ -9,7 +8,7 @@
 
 # config_version refers to the syntactic version of this config file, and is used in maintaining backwards compatibility
 # It is auto-generated and usually does not need to be changed.
-config_version: 4
+config_version: 4.0
 
 # This config file supports variable substitution which enables: 1) keeping
 # secrets out of source control & 2) environment-based configuration changes
@@ -75,13 +74,12 @@ data_docs_sites:
   # profiles from the uncommitted directory. Read more at https://docs.greatexpectations.io/docs/terms/data_docs
   local_site:
     class_name: SiteBuilder
-    # set to false to hide how-to buttons in Data Docs
     show_how_to_buttons: true
     store_backend:
-        class_name: TupleFilesystemStoreBackend
-        base_directory: uncommitted/data_docs/local_site/
+      class_name: TupleFilesystemStoreBackend
+      base_directory: uncommitted/data_docs/local_site/
     site_index_builder:
-        class_name: DefaultSiteIndexBuilder
+      class_name: DefaultSiteIndexBuilder
 
 # --- taxi-duration ---
 # Телеметрию в GX не шлём: проект локальный, данные и метаданные не уходят наружу.
@@ -90,3 +88,25 @@ analytics_enabled: false
 progress_bars:
   globally: false
   metric_calculations: false
+fluent_datasources:
+  taxi_pandas:
+    type: pandas
+    id: b0951201-4072-4f48-877d-4799483e61de
+    assets:
+      raw_trips:
+        type: dataframe
+        id: b7df8495-2fb0-4c19-8284-311d24c39fe7
+        batch_metadata: {}
+        batch_definitions:
+          whole_dataframe:
+            id: a60a8c40-3e7b-47fa-a35a-9df3135f739a
+            partitioner:
+      prepared_trips:
+        type: dataframe
+        id: 7a70fe25-5868-4075-964b-78568f371a8f
+        batch_metadata: {}
+        batch_definitions:
+          whole_dataframe:
+            id: 0d0a392e-aa56-444a-9d0f-102472b94c74
+            partitioner:
+data_context_id: 9638089e-c828-4985-a873-625a524e9894
